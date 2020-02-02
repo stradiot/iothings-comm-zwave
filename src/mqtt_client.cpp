@@ -24,7 +24,6 @@ const std::array<std::string, 1> SUB_TOPICS = { "dummy_topic" };
 
 void mqtt_client::callback::on_failure(const mqtt::token& tok) {
   std::cout << "Connection attempt failed" << std::endl;
-  cli_.reconnect();
 }
 
 void mqtt_client::callback::connected(const std::string& cause) {
@@ -38,9 +37,6 @@ void mqtt_client::callback::connection_lost(const std::string& cause){
   std::cout << "\nConnection lost" << std::endl;
   if (!cause.empty())
     std::cout << "\tcause: " << cause << std::endl;
-
-  std::cout << "Reconnecting..." << std::endl;
-  cli_.reconnect();
 }
 
 void mqtt_client::callback::message_arrived(mqtt::const_message_ptr msg) {
@@ -60,15 +56,19 @@ mqtt_client::mqtt_client(std::string client_id) {
   mqtt::connect_options conn_opts;
   conn_opts.set_will(last_will);
 	conn_opts.set_keep_alive_interval(20);
+  conn_opts.set_automatic_reconnect(true);
 	conn_opts.set_clean_session(true);
 
 	client = new mqtt::async_client(DEF_HOST, client_id);
-  cb = new callback(*client, conn_opts);
+  this->cb = new callback(*client, conn_opts);
 	client->set_callback(*cb);
 
 	try {
 		std::cout << "Connecting to the MQTT server..." << std::flush;
-		client->connect(conn_opts, nullptr, *cb);
+		mqtt::token_ptr conntok = client->connect(conn_opts, nullptr, *cb);
+		std::cout << "Waiting for the connection..." << std::endl;
+		conntok->wait();
+		std::cout << "  ...OK" << std::endl;
 	}
 	catch (const mqtt::exception&) {
 		std::cerr << "\nERROR: Unable to connect to MQTT server: '"
